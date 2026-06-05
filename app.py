@@ -21,6 +21,9 @@ def init_state():
         st.session_state.profile = dict(DEFAULT_PROFILE)
     if "history" not in st.session_state:
         st.session_state.history = []
+    # ADD 1: track recently added songs in session state (keeps last 5)
+    if "recently_added" not in st.session_state:
+        st.session_state.recently_added = []
 
 
 def default_songs():
@@ -209,11 +212,13 @@ def profile_sidebar():
             max_value=10,
             value=int(profile.get("chill_max_energy", 3)),
         )
-
+    genre_options = ["rock", "lofi", "pop", "jazz", "electronic", "ambient", "other"]
+    current_genre = profile.get("favorite_genre", "rock")
+    genre_index = genre_options.index(current_genre) if current_genre in genre_options else 0
     profile["favorite_genre"] = st.sidebar.selectbox(
         "Favorite genre",
-        options=["rock", "lofi", "pop", "jazz", "electronic", "ambient", "other"],
-        index=0,
+        options=genre_options,
+        index=genre_index
     )
 
     profile["include_mixed"] = st.sidebar.checkbox(
@@ -254,6 +259,11 @@ def add_song_sidebar():
             all_songs.append(normalized)
             st.session_state.songs = all_songs
 
+            # ADD 2: prepend the new song into `recently_added` (store up to 5)
+            recent_songs = st.session_state.recently_added[:]
+            recent_songs.insert(0, normalized)
+            st.session_state.recently_added = recent_songs[:5]
+
 
 def playlist_tabs(playlists):
     """Render playlists in tabs."""
@@ -268,6 +278,29 @@ def playlist_tabs(playlists):
     for label, tab in zip(tab_labels, tabs):
         with tab:
             render_playlist(label, playlists.get(label, []))
+
+
+def recently_added_section():
+    """Render the most recently added songs.
+
+    ADD 3: This section shows the top-5 recently added songs stored in
+    `st.session_state['recently_added']`. It's intentionally read-only and
+    does not modify other session state values.
+    """
+    st.header("Recently Added")
+
+    recent_songs = st.session_state.get("recently_added", [])
+    if not recent_songs:
+        st.write("No songs have been added yet.")
+        return
+
+    for song in recent_songs:
+        tags = ", ".join(song.get("tags", []))
+        st.write(
+            f"- **{song['title']}** by {song['artist']} "
+            f"(genre {song['genre']}, energy {song['energy']}) "
+            f"[{tags}]"
+        )
 
 
 def render_playlist(label, songs):
@@ -395,6 +428,8 @@ def main():
     merged_playlists = merge_playlists(base_playlists, {})
 
     playlist_tabs(merged_playlists)
+    st.divider()
+    recently_added_section()
     st.divider()
     lucky_section(merged_playlists)
     st.divider()
